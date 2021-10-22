@@ -1,0 +1,10 @@
+version: '3.7'
+
+services:
+  debug:
+    build:
+      context: .
+      dockerfile: debug.Dockerfile
+    ports:
+      - "9001:9000"
+      - "2345:2345"
