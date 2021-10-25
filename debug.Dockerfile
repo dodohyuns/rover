@@ -23,8 +23,10 @@ WORKDIR /src
 COPY . .
 # Copy ui/dist from ui stage as it needs to embedded
 COPY --from=ui ./src/dist ./ui/dist
+# Install delve
+RUN CGO_ENABLED=0 go get -v github.com/go-delve/delve/cmd/dlv
 # Build rover
-RUN go get -d -v golang.org/x/net/html  
+RUN go get -d -v golang.org/x/net/html
 RUN CGO_ENABLED=0 GOOS=linux go build -o rover .
 
 # Release stage
@@ -33,6 +35,7 @@ FROM hashicorp/terraform:$TF_VERSION AS release
 RUN cp /bin/terraform /usr/local/bin/terraform
 # Copy rover binary
 COPY --from=rover /src/rover /bin/rover
+COPY --from=rover /go/bin/dlv /bin/dlv
 RUN chmod +x /bin/rover
 
 EXPOSE 9000
@@ -40,4 +43,4 @@ EXPOSE 2345
 
 WORKDIR /src
 
-ENTRYPOINT ["/bin/dlv", "--listen=:2345", "--headless=true", "--api-version=2", "--accept-multiclient", "exec", "/bin/rover", "--continue"] # 디버깅 시작
+ENTRYPOINT ["/bin/dlv", "--listen=:2345", "--headless=true", "--api-version=2", "--accept-multiclient", "exec", "/bin/rover", "--continue"]
