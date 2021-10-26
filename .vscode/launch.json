@@ -7,7 +7,7 @@
             "request": "launch",
             "mode": "remote",
             "program": "${workspaceFolder}",
-            "remotePath": "/build",
+            "remotePath": "/src",
             "host": "127.0.0.1",
             "port": 2345,
             "env": {},
