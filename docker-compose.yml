@@ -6,6 +6,7 @@ services:
       context: .
       dockerfile: debug.Dockerfile
     command: -workspaceName "dev" -planPath plan.out
+    env_file: .env
     volumes:
       - "/Users/dohyun/whatvita/rover/plan:/src"
     ports:
