@@ -43,4 +43,4 @@ EXPOSE 2345
 
 WORKDIR /src
 
-ENTRYPOINT ["/bin/dlv", "--listen=:2345", "--headless=true", "--api-version=2", "--accept-multiclient", "exec", "/bin/rover", "--continue"]
+ENTRYPOINT ["/bin/dlv", "--listen=:2345", "--headless=true", "--api-version=2", "--accept-multiclient", "exec", "/bin/rover", "--continue", "--" ]
