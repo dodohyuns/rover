@@ -1,4 +1,5 @@
 rover
 .DS_Store
 rover.zip
-plan.out
+/plan
+.env
