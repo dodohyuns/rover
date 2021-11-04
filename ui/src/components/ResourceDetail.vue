@@ -190,20 +190,20 @@ export default {
       // Module
       if (resourceID.startsWith("module.")) {
         if (isChild) {
-          let id = resourceID.split(".").slice(2).join(".");
+          let id = resourceID.replace(/module\.[a-zA-Z]*?\./g, '');
 
-          for (let val of model.module.resources) {
-            if (val.address == id) {
-              let trc = {};
-              if (val.for_each_expression) {
-                trc.for_each = val.for_each_expression;
-              }
-              if (val.count_expression) {
-                trc.count = val.count_expression;
-              }
+          const foundResource = this.findResource(id, model);
 
-              return Object.assign(trc, val.expressions);
+          if (foundResource) {
+            let trc = {};
+            if (foundResource.for_each_expression) {
+              trc.for_each = foundResource.for_each_expression;
             }
+            if (foundResource.count_expression) {
+              trc.count = foundResource.count_expression;
+            }
+
+            return Object.assign(trc, foundResource.expressions);
           }
         }
 
@@ -212,8 +212,10 @@ export default {
           ...model.expressions,
         };
       }
+
       // Resource
       if (isChild) return { isChild: "rover-for-each-child-resource-true" };
+
       if (model.resources[resourceID] && model.resources[resourceID].config) {
         let trc = {};
         if (model.resources[resourceID].config.for_each_expression) {
@@ -230,6 +232,17 @@ export default {
 
       // Defaults to returning empty object
       return {};
+    },
+    findResource(id, model) {
+      if (!model.module.resources) {
+        return Object.values(model.module.module_calls).find(module => this.findResource(id, module));
+      }
+
+      const found = model.module.resources.find(res => {
+        return res.address === id;
+      });
+
+      return found;
     },
     getResourceChange(resourceID, model, isChild) {
       // console.log(`resourceID: ${resourceID}`);
@@ -322,21 +335,45 @@ export default {
   },
   computed: {
     resource() {
-      let resource = "";
+      let resourceAddressTree = [];
 
       // If no config version...
       if (this.resourceID.startsWith("Resources/")) {
-        resource = this.resourceID.split("/").join(".");
+        resourceAddressTree = this.resourceID.split("/");
       } else {
-        resource = this.resourceID.split("/").slice(-2).join(".");
+        resourceAddressTree = this.resourceID.split("/").slice(2).filter(id => id.split('.tf').length === 1);
+        if (resourceAddressTree.length === 1 && resourceAddressTree[0].split('module.').length >= 2) {
+          resourceAddressTree = resourceAddressTree[0]
+            .split('module.')
+            .filter(addr => !!addr)
+            .reduce((tree, addr) => {
+              const arr = [...tree, 'module.' + addr.replace(/\.$/, '')];
+              tree.push(arr.join('.'));
+              return tree;
+            }, []);
+        }
       }
 
-      const rArray = resource.split(".");
-      const lastIndex = rArray.length - 1;
+      const lastIndex = resourceAddressTree.length - 1;
+      let resourceID = resourceAddressTree[lastIndex];
 
-      let resourceID = rArray.slice(2).join(".");
-      let parentID = rArray.slice(2, 4).join(".").split("[")[0];
+      const resourceIDTree = resourceAddressTree.reduce((tree, address) => {
+        if (tree.length === 0) {
+          tree.push(address);
+        } else {
+          const prevAddress = tree.join('.');
+          const newAddress = address.replace(prevAddress + '.', '');
+          tree.push(newAddress);
+        }
 
+        return tree;
+      }, []);
+
+      let parentID = resourceIDTree[lastIndex - 1];
+
+      const rArray = resourceID.split(".");
+      const rArrayLastIndex = rArray.length - 1;
+      
       // If no config version..
       if (this.resourceID.startsWith("Resources/")) {
         resourceID = rArray.slice(1).join(".");
@@ -344,18 +381,18 @@ export default {
       }
 
       if (
-        rArray[lastIndex - 1] == "output" &&
+        rArray[rArrayLastIndex - 1] == "output" &&
         !resourceID.startsWith("output.")
       ) {
         resourceID = `output.${resourceID}`;
       }
 
-      if (rArray[lastIndex - 1] == "local") {
-        resourceID = `local.${rArray[lastIndex]}`;
+      if (rArray[rArrayLastIndex - 1] == "local") {
+        resourceID = `local.${rArray[rArrayLastIndex]}`;
       }
 
-      if (rArray[lastIndex - 1] == "var") {
-        resourceID = `var.${rArray[lastIndex]}`;
+      if (rArray[rArrayLastIndex - 1] == "var") {
+        resourceID = `var.${rArray[rArrayLastIndex]}`;
       }
 
       // If resourceID is a child only (no . in id)
@@ -368,8 +405,9 @@ export default {
         fileName: `${rArray[0]}.${rArray[1]}`,
         id: resourceID,
         parentID: parentID,
-        resource_type: rArray[lastIndex - 1],
-        resource_name: rArray[lastIndex],
+        rootParentID: resourceIDTree[0],
+        resource_type: rArray[rArrayLastIndex - 1],
+        resource_name: rArray[rArrayLastIndex],
       };
     },
     primitiveType() {
@@ -397,22 +435,14 @@ export default {
       }
 
       if (!this.isChild) {
-        // If it's part of a module
-        if (this.resource.id.startsWith("module.")) {
-          return this.getResourceConfig(
-            this.resource.id,
-            this.overview.resources[this.resource.parentID].module_config,
-            false
-          );
-        }
-        return this.getResourceConfig(this.resource.id, this.overview, false);
+        return this.getResourceConfig(this.resource.id, this.overview.resources[this.resource.id].module_config, false);
       }
 
       // If it's part of a module
       if (this.resource.id.startsWith("module.")) {
         return this.getResourceConfig(
           this.resource.id,
-          this.overview.resources[this.resource.parentID].module_config,
+          this.overview.resources[this.resource.rootParentID].module_config,
           true
         );
       }
@@ -428,17 +458,9 @@ export default {
         return this.getResourceChange(this.resource.id, this.overview, false);
       }
 
-      if (this.resource.id.startsWith("module.")) {
-        return this.getResourceChange(
-          this.resource.id,
-          this.overview.resources[this.resource.parentID],
-          true
-        );
-      }
-
       return this.getResourceChange(
         this.resource.id,
-        this.overview.resources[this.resource.parentID],
+        this.overview.resources[this.resource.id.startsWith("module.") ? this.resource.rootParentID : this.resource.parentID],
         true
       );
     },

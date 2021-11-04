@@ -1,8 +1,8 @@
 package main
 
 import (
-	"log"
 	"fmt"
+	"log"
 	"strings"
 	// tfjson "github.com/hashicorp/terraform-json"
 )
@@ -74,7 +74,7 @@ func (r *rover) GenerateGraph() error {
 				},
 				Classes: "locals",
 			})
-			break;
+			break
 		}
 	}
 
@@ -198,6 +198,61 @@ func (r *rover) GenerateNodes() []Node {
 				Parent: fname,
 			},
 			Classes: "module",
+		}
+
+		nestedModules := module.ChildModules
+
+		if nestedModules != nil && len(nestedModules) > 0 {
+			for _, nm := range nestedModules {
+				nmo = append(nmo, nm.Address)
+				nodeMap[nm.Address] = Node{
+					Data: NodeData{
+						ID:     nm.Address,
+						Label:  strings.TrimPrefix(nm.Address, module.Address+".module."),
+						Type:   "module",
+						Parent: module.Address,
+					},
+					Classes: "module",
+				}
+
+				for _, nmr := range nm.Resources {
+					resourceNameSuffix := "name"
+
+					mid := fmt.Sprintf("%s.%s", nm.Address, nmr.Type)
+
+					// Append resource type
+					nmo = append(nmo, mid)
+					nodeMap[mid] = Node{
+						Data: NodeData{
+							ID:          mid,
+							Label:       nmr.Type,
+							Type:        "resource",
+							Parent:      nm.Address,
+							ParentColor: getResourceColor(nm.Address),
+						},
+						Classes: "resource-type",
+					}
+
+					nmrChange := string(ActionNoop)
+					if _, ok := nodeMap[nmr.Address]; ok {
+						nmrChange = string(nodeMap[nmr.Address].Data.Change)
+					}
+
+					// Append resource name
+					nmo = append(nmo, nmr.Address)
+					nodeMap[nmr.Address] = Node{
+						Data: NodeData{
+							ID:          nmr.Address,
+							Label:       nmr.Name,
+							Type:        getPrimitiveType(nmr.Type),
+							Parent:      mid,
+							ParentColor: getResourceColor(nm.Address),
+							Change:      nmrChange,
+						},
+						Classes: fmt.Sprintf("resource-%s %s", resourceNameSuffix, nmrChange),
+					}
+				}
+			}
 		}
 
 		for _, mr := range module.Resources {
@@ -332,7 +387,7 @@ func (r *rover) GenerateEdges() []Edge {
 					}
 
 					// if the dependency is an attribute, skip
-					if (len(strings.Split(dependsOnR, ".")) > 2) {
+					if len(strings.Split(dependsOnR, ".")) > 2 {
 						continue
 					}
 
