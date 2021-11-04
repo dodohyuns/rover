@@ -5,10 +5,11 @@ services:
     build:
       context: .
       dockerfile: debug.Dockerfile
-    command: -workspaceName "dev" -planPath plan.out
+    # command: -workspaceName "dev" -planPath ./plan/plan.out
+    command: -workingDir "example/random-test"
     env_file: .env
     volumes:
-      - "/Users/dohyun/whatvita/rover/plan:/src"
+      - "/Users/dohyun/whatvita/rover:/src"
     ports:
       - "9000:9000"
       - "2345:2345"

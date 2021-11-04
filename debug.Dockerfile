@@ -27,7 +27,7 @@ COPY --from=ui ./src/dist ./ui/dist
 RUN CGO_ENABLED=0 go get -v github.com/go-delve/delve/cmd/dlv
 # Build rover
 RUN go get -d -v golang.org/x/net/html
-RUN CGO_ENABLED=0 GOOS=linux go build -o rover .
+RUN CGO_ENABLED=0 GOOS=linux go build -gcflags "all=-N -l" -o rover .
 
 # Release stage
 FROM hashicorp/terraform:$TF_VERSION AS release
